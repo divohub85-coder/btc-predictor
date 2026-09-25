@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTCUSDT Predictor</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 12px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .sub { color: #8b949e; font-size: 0.8rem; margin-bottom: 16px; }
+
+  .price-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 12px 18px; margin-bottom: 14px;
+  }
+  .price-left { display: flex; align-items: baseline; gap: 12px; }
+  .price-label { font-size: 0.8rem; color: #8b949e; }
+  .price-value { font-size: 1.5rem; font-weight: 700; }
+  .price-change { font-size: 0.9rem; font-weight: 600; }
+  .up { color: #3fb950; }
+  .down { color: #f85149; }
+
+  .accuracy-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 700px) { .accuracy-bar { grid-template-columns: repeat(2, 1fr); } }
+  .acc-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 12px;
+  }
+  .acc-label { font-size: 0.7rem; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; }
+  .acc-value { font-size: 1.3rem; font-weight: 700; }
+  .acc-detail { font-size: 0.7rem; color: #8b949e; margin-top: 4px; }
+
+  .chart-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 14px; margin-bottom: 14px;
+  }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+  }
+  .chart-title { font-size: 0.9rem; color: #8b949e; }
+  .chart-title strong { color: #e6edf3; }
+  #chart { width: 100%; height: 400px; }
+
+  .tf-buttons { display: flex; gap: 6px; }
+  .tf-buttons button {
+    background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+    padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;
+    font-weight: 500;
+  }
+  .tf-buttons button:hover { background: #30363d; }
+  .tf-buttons button.active {
+    background: #1f6feb; color: #fff; border-color: #1f6feb;
+  }
+
+  .prediction-bar {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid #30363d;
+  }
+  .pred-item { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+  .pred-label { color: #8b949e; }
+  .pred-value { font-weight: 700; }
+  .arrow-big { font-size: 1.5rem; line-height: 1; }
+
+  .ratio-bar {
+    flex: 1; min-width: 200px;
+    height: 20px; background: #21262d; border-radius: 10px;
+    overflow: hidden; display: flex;
+  }
+  .ratio-bull { background: #3fb950; height: 100%; transition: width 0.4s ease; }
+  .ratio-bear { background: #f85149; height: 100%; transition: width 0.4s ease; }
+
+  .tf-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  }
+  @media (max-width: 700px) { .tf-grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 14px;
+  }
+  .card h3 {
+    font-size: 0.95rem; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .badge {
+    background: #21262d; color: #58a6ff;
+    padding: 2px 9px; border-radius: 12px;
+    font-size: 0.7rem; font-weight: 500;
+  }
+
+  .row-block {
+    padding: 10px 0; border-bottom: 1px solid #21262d;
+  }
+  .row-block:last-child { border-bottom: none; }
+  .row-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .row-label { font-size: 0.8rem; color: #8b949e; }
+  .row-label.live { color: #58a6ff; }
+  .dir-tag {
+    font-size: 0.75rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .dir-bull { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .dir-bear { background: rgba(248,81,73,0.15); color: #f85149; }
+  .dir-neutral { background: rgba(139,148,158,0.15); color: #8b949e; }
+
+  .prob-line {
+    display: flex; justify-content: space-between;
+    font-size: 0.75rem; color: #8b949e; margin-bottom: 3px;
+  }
+  .prob-line b { color: #e6edf3; }
+  .bar {
+    height: 6px; background: #21262d; border-radius: 3px;
+    overflow: hidden; margin-bottom: 8px;
+  }
+  .bar-bull { height: 100%; background: #3fb950; }
+  .bar-bear { height: 100%; background: #f85149; }
+  .bar-conf { height: 100%; background: #58a6ff; }
+
+  .votes { font-size: 0.7rem; color: #8b949e; margin-top: 6px; }
+
+  /* Indicator breakdown */
+  .ind-breakdown {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #21262d;
+  }
+  .ind-title {
+    font-size: 0.72rem;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .ind-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.75rem;
+    padding: 3px 0;
+    border-bottom: 1px solid #1a1f26;
+  }
+  .ind-row:last-child { border-bottom: none; }
+  .ind-name {
+    color: #c9d1d9;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ind-vote {
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: center;
+  }
+  .vote-bull { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .vote-bear { background: rgba(248,81,73,0.15); color: #f85149; }
+  .vote-neutral { background: rgba(139,148,158,0.15); color: #8b949e; }
+
+  .ind-acc {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #8b949e;
+    min-width: 60px;
+    text-align: right;
+  }
+  .ind-acc.good { color: #3fb950; }
+  .ind-acc.mid { color: #d29922; }
+  .ind-acc.bad { color: #f85149; }
+
+  .refresh { text-align: center; margin-top: 16px; }
+  .refresh button {
+    background: #238636; color: #fff; border: none;
+    padding: 8px 20px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
+  }
+  .refresh button:hover { background: #2ea043; }
+  .status { text-align: center; font-size: 0.75rem; color: #8b949e; margin-top: 8px; }
+  .error { color: #f85149; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>BTCUSDT Predictor</h1>
+  <p class="sub" id="updated">Loading...</p>
+
+  <div class="price-bar">
+    <div class="price-left">
+      <span class="price-label">LIVE PRICE</span>
+      <span class="price-value" id="live-price">--</span>
+      <span class="price-change" id="live-change">--</span>
+    </div>
+    <div style="font-size:0.75rem;color:#8b949e;" id="live-status">Connecting...</div>
+  </div>
+
+  <div class="accuracy-bar">
+    <div class="acc-card">
+      <div class="acc-label">Last 50</div>
+      <div class="acc-value" id="acc-50">--</div>
+      <div class="acc-detail" id="acc-50-detail">-- correct</div>
+    </div>
+    <div class="acc-card">
+      <div class="acc-label">Last 100</div>
+      <div class="acc-value" id="acc-100">--</div>
+      <div class="acc-detail" id="acc-100-detail">-- correct</div>
+    </div>
+    <div class="acc-card">
+      <div class="acc-label">Last 500</div>
+      <div class="acc-value" id="acc-500">--</div>
+      <div class="acc-detail" id="acc-500-detail">-- correct</div>
+    </div>
+    <div class="acc-card">
+      <div class="acc-label">15m Accuracy</div>
+      <div class="acc-value" id="acc-15m">--</div>
+      <div class="acc-detail" id="acc-15m-detail">-- correct</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Chart: <strong id="chart-tf-label">15m</strong></div>
+      <div class="tf-buttons" id="tf-buttons">
+        <button data-tf="5m">5m</button>
+        <button data-tf="15m" class="active">15m</button>
+        <button data-tf="1h">1h</button>
+        <button data-tf="1d">1d</button>
+      </div>
+    </div>
+    <div id="chart"></div>
+
+    <div class="prediction-bar">
+      <div class="pred-item">
+        <span class="arrow-big" id="pred-arrow">⏸</span>
+        <span class="pred-value" id="pred-direction">--</span>
+      </div>
+      <div class="ratio-bar">
+        <div class="ratio-bull" id="ratio-bull" style="width:50%"></div>
+        <div class="ratio-bear" id="ratio-bear" style="width:50%"></div>
+      </div>
+      <div class="pred-item">
+        <span class="pred-label">Bull</span>
+        <span class="pred-value up" id="pred-bull">--%</span>
+      </div>
+      <div class="pred-item">
+        <span class="pred-label">Bear</span>
+        <span class="pred-value down" id="pred-bear">--%</span>
+      </div>
+      <div class="pred-item">
+        <span class="pred-label">Conf</span>
+        <span class="pred-value" id="pred-conf" style="color:#58a6ff">--%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tf-grid" id="tf-grid"></div>
+
+  <div class="refresh">
+    <button onclick="refreshAll()">Refresh Now</button>
+    <p class="status" id="status"></p>
+  </div>
+</div>
+
+<script>
+const TF_ORDER = ["5m", "15m", "1h", "1d"];
+const TF_LABELS = { "5m": "5 Minutes", "15m": "15 Minutes", "1h": "1 Hour", "1d": "1 Day" };
+const IND_LABELS = {
+  "ema": "EMA",
+  "rsi": "RSI",
+  "macd": "MACD",
+  "volume": "Volume",
+  "candle": "Candle",
+  "psar": "PSAR",
+  "bb": "BB",
+  "williams_r": "W%R",
+  "adx": "ADX",
+  "vwap": "VWAP"
+};
+
+let chart = null;
+let candleSeries = null;
+let priceLine = null;
+let currentTF = "15m";
+let globalIndicatorAccuracy = {};
+
+function initChart() {
+  const container = document.getElementById("chart");
+  chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 400,
+    layout: { background: { color: "#161b22" }, textColor: "#c9d1d9" },
+    grid: {
+      vertLines: { color: "#21262d" },
+      horzLines: { color: "#21262d" },
+    },
+    rightPriceScale: { borderColor: "#30363d" },
+    timeScale: { borderColor: "#30363d", timeVisible: true },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: "#3fb950",
+    downColor: "#f85149",
+    borderUpColor: "#3fb950",
+    borderDownColor: "#f85149",
+    wickUpColor: "#3fb950",
+    wickDownColor: "#f85149",
+  });
+
+  priceLine = chart.addLineSeries({
+    color: "#58a6ff",
+    lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dashed,
+  });
+
+  window.addEventListener("resize", () => {
+    chart.applyOptions({ width: container.clientWidth });
+  });
+}
+
+async function loadChart(tf) {
+  currentTF = tf;
+  document.getElementById("chart-tf-label").textContent = tf;
+  document.querySelectorAll("#tf-buttons button").forEach(b => {
+    b.classList.toggle("active", b.dataset.tf === tf);
+  });
+
+  try {
+    const r = await fetch("/api/chart/" + tf);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    const candles = d.candles.map(c => ({
+      time: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    candleSeries.setData(candles);
+
+    const lastClose = candles[candles.length - 1].close;
+    priceLine.setData(candles.map(c => ({ time: c.time, value: lastClose })));
+
+    if (d.prediction && d.prediction.live) {
+      updatePredictionBar(d.prediction.live);
+    }
+  } catch (e) {
+    console.error("Chart error:", e);
+  }
+}
+
+function updatePredictionBar(pred) {
+  const arrow = document.getElementById("pred-arrow");
+  const dir = document.getElementById("pred-direction");
+
+  const dirClass = pred.direction === "BULLISH" ? "up"
+                 : pred.direction === "BEARISH" ? "down" : "";
+
+  if (pred.direction === "BULLISH") {
+    arrow.textContent = "▲";
+    arrow.className = "arrow-big up";
+  } else if (pred.direction === "BEARISH") {
+    arrow.textContent = "▼";
+    arrow.className = "arrow-big down";
+  } else {
+    arrow.textContent = "⏸";
+    arrow.className = "arrow-big";
+  }
+
+  dir.textContent = pred.direction;
+  dir.className = "pred-value " + dirClass;
+
+  document.getElementById("pred-bull").textContent = pred.bullish_prob + "%";
+  document.getElementById("pred-bear").textContent = pred.bearish_prob + "%";
+  document.getElementById("pred-conf").textContent = pred.confidence + "%";
+
+  document.getElementById("ratio-bull").style.width = pred.bullish_prob + "%";
+  document.getElementById("ratio-bear").style.width = pred.bearish_prob + "%";
+}
+
+function renderAccuracy(acc) {
+  if (!acc) return;
+  const limits = [50, 100, 500];
+  limits.forEach(n => {
+    const key = "last_" + n;
+    const el = document.getElementById("acc-" + n);
+    const detail = document.getElementById("acc-" + n + "-detail");
+    if (acc[key]) {
+      const color = acc[key].accuracy >= 60 ? "#3fb950"
+                  : acc[key].accuracy >= 50 ? "#d29922" : "#f85149";
+      el.textContent = acc[key].accuracy + "%";
+      el.style.color = color;
+      detail.textContent = acc[key].correct + "/" + acc[key].total + " correct";
+    } else {
+      el.textContent = "--";
+      el.style.color = "#8b949e";
+      detail.textContent = "No data yet";
+    }
+  });
+
+  const tf = "tf_15m";
+  const el = document.getElementById("acc-15m");
+  const detail = document.getElementById("acc-15m-detail");
+  if (acc[tf]) {
+    const color = acc[tf].accuracy >= 60 ? "#3fb950"
+                : acc[tf].accuracy >= 50 ? "#d29922" : "#f85149";
+    el.textContent = acc[tf].accuracy + "%";
+    el.style.color = color;
+    detail.textContent = acc[tf].correct + "/" + acc[tf].total + " correct";
+  } else {
+    el.textContent = "--";
+    detail.textContent = "No data yet";
+  }
+}
+
+function renderIndicatorBreakdown(indVotes, indAcc) {
+  if (!indVotes) return "";
+
+  const rows = Object.keys(IND_LABELS).map(key => {
+    const vote = indVotes[key] || "NEUTRAL";
+    const label = IND_LABELS[key];
+
+    let voteClass = "vote-neutral";
+    let icon = "⚪";
+    if (vote === "BULLISH") { voteClass = "vote-bull"; icon = "🟢"; }
+    else if (vote === "BEARISH") { voteClass = "vote-bear"; icon = "🔴"; }
+
+    // Accuracy
+    let accHtml = `<span class="ind-acc">--</span>`;
+    if (indAcc && indAcc[key]) {
+      const a = indAcc[key].accuracy;
+      const accClass = a >= 60 ? "good" : a >= 50 ? "mid" : "bad";
+      accHtml = `<span class="ind-acc ${accClass}">${a}% (${indAcc[key].correct}/${indAcc[key].total})</span>`;
+    }
+
+    return `
+      <div class="ind-row">
+        <span class="ind-name">${icon} ${label}</span>
+        <span class="ind-vote ${voteClass}">${vote}</span>
+        ${accHtml}
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="ind-breakdown">
+      <div class="ind-title">Indicator Breakdown</div>
+      ${rows}
+    </div>
+  `;
+}
+
+function renderCandleBlock(label, pred, isLive) {
+  if (!pred) return "";
+  const dirClass = pred.direction === "BULLISH" ? "dir-bull"
+                 : pred.direction === "BEARISH" ? "dir-bear" : "dir-neutral";
+  const liveClass = isLive ? "live" : "";
+  const liveIcon = isLive ? "● " : "";
+
+  const breakdownHtml = renderIndicatorBreakdown(pred.indicator_votes, globalIndicatorAccuracy);
+
+  return `
+    <div class="row-block">
+      <div class="row-header">
+        <span class="row-label ${liveClass}">${liveIcon}${label}</span>
+        <span class="dir-tag ${dirClass}">${pred.direction}</span>
+      </div>
+      <div class="prob-line">
+        <span>Bull <b class="up">${pred.bullish_prob}%</b></span>
+        <span>Bear <b class="down">${pred.bearish_prob}%</b></span>
+      </div>
+      <div class="bar"><div class="bar-bull" style="width:${pred.bullish_prob}%"></div></div>
+      <div class="bar"><div class="bar-bear" style="width:${pred.bearish_prob}%"></div></div>
+      <div class="prob-line">
+        <span>Confidence</span>
+        <span><b style="color:#58a6ff">${pred.confidence}%</b></span>
+      </div>
+      <div class="bar"><div class="bar-conf" style="width:${pred.confidence}%"></div></div>
+      <div class="votes">Votes: ${pred.votes_bull} Bull / ${pred.votes_bear} Bear (${pred.total_votes} total)</div>
+      ${breakdownHtml}
+    </div>
+  `;
+}
+
+function renderCard(tf, data) {
+  if (!data || data.error) {
+    return `<div class="card"><h3>${TF_LABELS[tf]} <span class="badge">${tf}</span></h3><div class="error">Error</div></div>`;
+  }
+
+  return `
+    <div class="card">
+      <h3>${TF_LABELS[tf]} <span class="badge">${tf}</span></h3>
+      ${renderCandleBlock("CLOSED CANDLE", data.closed, false)}
+      ${renderCandleBlock("LIVE CANDLE", data.live, true)}
+    </div>
+  `;
+}
+
+async function loadPredictions() {
+  try {
+    const r = await fetch("/api/predict");
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    document.getElementById("updated").textContent = "Updated: " + d.generated_at;
+
+    if (d.indicator_accuracy) {
+      globalIndicatorAccuracy = d.indicator_accuracy;
+    }
+
+    const grid = document.getElementById("tf-grid");
+    grid.innerHTML = TF_ORDER.map(tf => renderCard(tf, d.timeframes[tf])).join("");
+
+    if (d.accuracy) renderAccuracy(d.accuracy);
+
+    const cur = d.timeframes[currentTF];
+    if (cur && cur.live) updatePredictionBar(cur.live);
+
+    document.getElementById("status").textContent = "Last refresh: " + new Date().toLocaleTimeString();
+    document.getElementById("status").className = "status";
+  } catch (e) {
+    document.getElementById("status").textContent = "Error: " + e.message;
+    document.getElementById("status").className = "status error";
+  }
+}
+
+async function loadLivePrice() {
+  try {
+    const r = await fetch("/api/chart/5m");
+    const d = await r.json();
+    if (!d.candles || d.candles.length === 0) return;
+
+    const candles = d.candles;
+    const last = candles[candles.length - 1];
+    const prev = candles.length > 1 ? candles[candles.length - 2] : last;
+
+    const price = last.close;
+    const change = price - prev.close;
+    const changePct = (change / prev.close) * 100;
+
+    const priceEl = document.getElementById("live-price");
+    const changeEl = document.getElementById("live-change");
+    const statusEl = document.getElementById("live-status");
+
+    priceEl.textContent = "$" + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const sign = change >= 0 ? "+" : "";
+    changeEl.textContent = sign + change.toFixed(2) + " (" + sign + changePct.toFixed(2) + "%)";
+    changeEl.className = "price-change " + (change >= 0 ? "up" : "down");
+
+    statusEl.textContent = "● Live";
+    statusEl.style.color = "#3fb950";
+  } catch (e) {
+    document.getElementById("live-status").textContent = "Error";
+    document.getElementById("live-status").style.color = "#f85149";
+  }
+}
+
+function refreshAll() {
+  loadPredictions();
+  loadChart(currentTF);
+}
+
+document.getElementById("tf-buttons").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  loadChart(btn.dataset.tf);
+});
+
+initChart();
+loadChart("15m");
+loadPredictions();
+loadLivePrice();
+
+setInterval(loadLivePrice, 1000);
+setInterval(loadPredictions, 10000);
+setInterval(() => loadChart(currentTF), 10000);
+</script>
+</body>
+</html>
